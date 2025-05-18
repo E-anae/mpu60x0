@@ -24,12 +24,12 @@ impl<I2C: Instance, Pins> Mpu60x0Impl<I2C, Pins> {
 
 impl<I2C: Instance, Pins> Mpu60x0 for Mpu60x0Impl<I2C, Pins> {
     fn write_at_address(&mut self, address: u8, value: u8) -> Result<(), Mpu60x0Error> {
-        self.i2c.write(address, &[value]).map_err(|_| Mpu60x0Error::i2c_error())
+        self.i2c.write(0x68, &[address, value]).map_err(|_| Mpu60x0Error::i2c_error())
     }
 
     fn read_address(&mut self, address: u8) -> Result<u8, Mpu60x0Error> {
         let mut buffer = [0; 1];
-        self.i2c.read(0x68, &mut buffer).map_err(|_| Mpu60x0Error::i2c_error())?;
+        self.i2c.write_read(0x68, &[address], &mut buffer).map_err(|_| Mpu60x0Error::i2c_error())?;
         rprintln!("0x{:02X}", buffer[0]);
         Ok(buffer[0])
     }
@@ -69,6 +69,11 @@ fn main() -> ! {
     );
 
     let mut mpu = Mpu60x0Impl::new(i2c);
+
+    match mpu.init() {
+        Ok(_) => rprintln!("MPU60X0 initialized"),
+        Err(e) => rprintln!("MPU60X0 initialization failed: {:?}", e),
+    }
 
     loop {
         led.toggle();
