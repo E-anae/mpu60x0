@@ -1,0 +1,26 @@
+[package]
+    name = "mpu60x0"
+    version = "0.1.0"
+    edition = "2021"
+
+[dependencies]
+    embedded-hal = "1.0.0"
+    cortex-m = "0.7"
+    cortex-m-rt = "0.6"
+    stm32f4xx-hal = { version = "0.10", features = ["rt", "stm32f429"] }
+    rtt-target = { version="0.3.1", features = ["cortex-m"] }
+    panic-halt = "0.2.0"
+
+[lib]
+    name = "mpu60x0"
+    path = "src/lib.rs"
+
+[profile.dev]
+    panic = "abort"
+
+[profile.release]
+    panic = "abort"
+
+[[example]]
+    name = "small-example"
+    target = "thumbv7em-none-eabihf"
