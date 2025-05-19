@@ -1,3 +1,5 @@
+pub const MPU60X0_ADDRESS: u8 = 0x68;
+
 // MPU60X0 Registers
 pub const WHO_AM_I: u8 = 0x75;
 pub const SMPLRT_DIV: u8 = 0x19;

@@ -6,6 +6,7 @@ pub enum ErrorKind {
     I2cError,
     DeviceNotFound,
     InvalidData,
+    NotEnoughData(u16),
 }
 
 #[derive(Debug)]
@@ -40,6 +41,13 @@ impl Mpu60x0Error {
         Mpu60x0Error {
             kind: ErrorKind::InvalidData,
             message: "Invalid data",
+        }
+    }
+
+    pub fn not_enough_data(count: u16) -> Self {
+        Mpu60x0Error {
+            kind: ErrorKind::NotEnoughData(count),
+            message: "Not enough data",
         }
     }
 }
