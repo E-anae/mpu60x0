@@ -5,7 +5,7 @@ pub enum ErrorKind {
     CustomError,
     I2cError,
     DeviceNotFound,
-    InvalidData,
+    InvalidData(u8),
     NotEnoughData(u16),
 }
 
@@ -37,9 +37,9 @@ impl Mpu60x0Error {
         }
     }
 
-    pub fn invalid_data() -> Self {
+    pub fn invalid_data(data: u8) -> Self {
         Mpu60x0Error {
-            kind: ErrorKind::InvalidData,
+            kind: ErrorKind::InvalidData(data),
             message: "Invalid data",
         }
     }

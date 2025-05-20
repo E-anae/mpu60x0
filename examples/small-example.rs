@@ -4,13 +4,15 @@
 use cortex_m_rt::entry;
 use panic_halt as _;
 use stm32f4xx_hal::{
-    delay::Delay,
+    delay::{ self, Delay },
     i2c::{ I2c, Instance, Mode },
     pac::{ self, sai::ch::im, GPIOG },
     prelude::*,
 };
+use stm32f4xx_hal::serial::{ Serial, config::Config };
 use core::panic::PanicInfo;
 use rtt_target::{ rtt_init_print, rprintln };
+use core::fmt::Write;
 
 use mpu60x0::{ Mpu60x0, error::Mpu60x0Error };
 
@@ -27,6 +29,7 @@ fn main() -> ! {
 
     let gpiog = device.GPIOG.split();
     let gpiob = device.GPIOB.split();
+    let gpiof = device.GPIOF.split();
 
     let mut led = gpiog.pg13.into_push_pull_output();
     let mut delay = Delay::new(core.SYST, &clocks);
@@ -43,23 +46,38 @@ fn main() -> ! {
         clocks
     );
 
-    let mut mpu = Mpu60x0::new(i2c);
+    let mut mpu = Mpu60x0::new(i2c, delay);
 
     match mpu.init() {
         Ok(_) => rprintln!("MPU60X0 initialized"),
         Err(e) => rprintln!("MPU60X0 initialization failed: {:?}", e),
     }
 
-    loop {
-        match mpu.read_gyro() {
-            Ok(data) => {
-                rprintln!("Gyro data: x: {}, y: {}, z: {}", data.x, data.y, data.z);
-            }
-            Err(e) => {
-                rprintln!("Error reading gyro data: {:?}", e);
-            }
-        }
+    let serial = Serial::uart7(
+        device.UART7,
+        (gpiof.pf7.into_alternate(), gpiof.pf6.into_alternate()),
+        Config::default().baudrate((115_200).bps()),
+        clocks
+    ).unwrap();
+    let (mut tx, _rx) = serial.split();
 
-        delay.delay_ms(1000_u32);
+    loop {
+        match mpu.read_fifo() {
+            Ok(data) => {
+                rprintln!(
+                    "Gyro: x: {}, y: {}, z: {}",
+                    data.gyro_data.x,
+                    data.gyro_data.y,
+                    data.gyro_data.z
+                );
+                rprintln!(
+                    "Accel: x: {}, y: {}, z: {}",
+                    data.accel_data.x,
+                    data.accel_data.y,
+                    data.accel_data.z
+                );
+            }
+            Err(e) => (),
+        }
     }
 }
