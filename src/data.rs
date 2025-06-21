@@ -1,4 +1,3 @@
-use stm32f4xx_hal::pac::sai::ch::im;
 
 pub struct FifoData {
     pub gyro_data: GyroData,

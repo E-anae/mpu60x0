@@ -11,7 +11,6 @@ use registers::{
     FIFO_DATA,
     FIFO_EN,
     GYRO_CONFIG,
-    I2C_MST_CTRL,
     MPU60X0_ADDRESS,
     PWR_MGMT_1,
     PWR_MGMT_2,
