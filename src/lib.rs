@@ -88,6 +88,7 @@ impl<I2C: I2c> Mpu60x0<I2C, Disabled> {
         self.write_at_address(SMPLRT_DIV, 0x31)?;
         self.write_at_address(CONFIG, 0x04)?;
         self.write_at_address(GYRO_CONFIG, 0x00)?;
+        self.write_at_address(ACCEL_CONFIG, 0x00)?;
 
         Ok(Mpu60x0 { i2c: self.i2c, _state: PhantomData })
     }
@@ -131,7 +132,13 @@ impl<I2C: I2c> Mpu60x0<I2C, Enabled> {
     }
 }
 
-trait Sealed {}
+mod sealed {
+    pub trait Sealed {}
+}
+
+use sealed::Sealed;
+
+use crate::registers::ACCEL_CONFIG;
 
 pub struct Enabled;
 pub struct Disabled;

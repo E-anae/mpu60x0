@@ -1,8 +1,6 @@
-
 pub struct FifoData {
     pub gyro_data: GyroData,
     pub accel_data: AccelData,
-    // pub temp_data: TempData,
 }
 
 pub struct GyroData {
