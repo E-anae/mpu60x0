@@ -1,11 +1,9 @@
 #![no_std]
 
-use core::{ pin, result::Result::{ self, Ok } };
-use embedded_hal::blocking::i2c::{ Write, WriteRead };
-use rtt_target::rprintln;
-
+use core::marker::PhantomData;
+use embedded_hal::{ i2c::I2c, delay::DelayNs };
 use error::Mpu60x0Error;
-use data::{ AccelData, FifoData, GyroData, TempData };
+use data::{ AccelData, FifoData, GyroData };
 use registers::{
     CONFIG,
     FIFO_COUNT_H,
@@ -26,16 +24,12 @@ mod registers;
 mod data;
 pub mod error;
 
-pub struct Mpu60x0<I2C, D> {
+pub struct Mpu60x0<I2C, State: Sealed> {
     i2c: I2C,
-    delay: D,
+    _state: PhantomData<State>,
 }
 
-impl<I2C: Write + WriteRead, D: embedded_hal::blocking::delay::DelayMs<u32>> Mpu60x0<I2C, D> {
-    pub fn new(i2c: I2C, delay: D) -> Self {
-        Mpu60x0 { i2c, delay }
-    }
-
+impl<I2C: I2c, State: Sealed> Mpu60x0<I2C, State> {
     fn write_at_address(&mut self, address: u8, value: u8) -> Result<(), Mpu60x0Error> {
         self.i2c.write(0x68, &[address, value]).map_err(|_| { Mpu60x0Error::i2c_error() })
     }
@@ -48,50 +42,63 @@ impl<I2C: Write + WriteRead, D: embedded_hal::blocking::delay::DelayMs<u32>> Mpu
         Ok(buffer[0])
     }
 
-    fn delay_ms(&mut self, ms: u32) {
-        self.delay.delay_ms(ms);
-    }
-
     pub fn ping(&mut self) -> Result<(), Mpu60x0Error> {
         if self.read_address(WHO_AM_I)? != MPU60X0_ADDRESS {
             return Err(Mpu60x0Error::device_not_found());
         }
         Ok(())
     }
+}
 
-    pub fn init(&mut self) -> Result<(), Mpu60x0Error> {
+impl<I2C: I2c> Mpu60x0<I2C, Disabled> {
+    pub fn new(i2c: I2C) -> Self {
+        Mpu60x0 { i2c, _state: PhantomData }
+    }
+
+    pub fn enable<D: DelayNs>(
+        mut self,
+        delay: &mut D
+    ) -> Result<Mpu60x0<I2C, Enabled>, Mpu60x0Error> {
         self.ping()?;
 
         // 1. Reset device
         self.write_at_address(PWR_MGMT_1, 0x80)?;
-        self.delay_ms(100);
+        delay.delay_ms(100);
 
         // 2. Wake up and set clock source
         self.write_at_address(PWR_MGMT_1, 0x01)?;
-        self.delay_ms(10);
+        delay.delay_ms(10);
 
         // 3. Enable all sensors (disable standby)
         self.write_at_address(PWR_MGMT_2, 0x00)?;
-        self.delay_ms(10);
+        delay.delay_ms(10);
 
         // 4. Reset FIFO
         self.write_at_address(USER_CTRL, 0x04)?;
-        self.delay_ms(10);
+        delay.delay_ms(10);
 
         // 5. Enable FIFO logic
         self.write_at_address(USER_CTRL, 0x40)?;
-        self.delay_ms(10);
+        delay.delay_ms(10);
 
         // 6. Enable gyro, accel and temp data to FIFO (do this AFTER enabling FIFO logic)
         self.write_at_address(FIFO_EN, 0x78)?;
-        self.delay_ms(10);
+        delay.delay_ms(10);
 
         // 7. Configure sample rate, DLPF, gyro config
         self.write_at_address(SMPLRT_DIV, 0x31)?;
         self.write_at_address(CONFIG, 0x04)?;
         self.write_at_address(GYRO_CONFIG, 0x00)?;
 
-        Ok(())
+        Ok(Mpu60x0 { i2c: self.i2c, _state: PhantomData })
+    }
+}
+
+impl<I2C: I2c> Mpu60x0<I2C, Enabled> {
+    pub fn disable(mut self) -> Mpu60x0<I2C, Disabled> {
+        // Reset device to disable all sensors and FIFO
+        self.write_at_address(PWR_MGMT_1, 0x80).unwrap();
+        Mpu60x0 { i2c: self.i2c, _state: PhantomData }
     }
 
     pub fn read_fifo(&mut self) -> Result<FifoData, Mpu60x0Error> {
@@ -124,3 +131,11 @@ impl<I2C: Write + WriteRead, D: embedded_hal::blocking::delay::DelayMs<u32>> Mpu
         Ok(fifo_data.accel_data)
     }
 }
+
+trait Sealed {}
+
+pub struct Enabled;
+pub struct Disabled;
+
+impl Sealed for Enabled {}
+impl Sealed for Disabled {}

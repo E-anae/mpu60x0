@@ -4,12 +4,13 @@
 use cortex_m_rt::entry;
 use panic_halt as _;
 use stm32f4xx_hal::{
-    delay::{ self, Delay },
     i2c::{ I2c, Instance, Mode },
     pac::{ self, sai::ch::im, GPIOG },
     prelude::*,
+    serial::{ config::Config, Serial },
+    time::Hertz,
+    timer::Delay,
 };
-use stm32f4xx_hal::serial::{ Serial, config::Config };
 use core::panic::PanicInfo;
 use rtt_target::{ rtt_init_print, rprintln };
 use core::fmt::Write;
@@ -21,18 +22,14 @@ fn main() -> ! {
     rtt_init_print!();
 
     let device = pac::Peripherals::take().unwrap();
-    let core = cortex_m::Peripherals::take().unwrap();
 
     let rcc = device.RCC.constrain();
-    let clocks = rcc.cfgr.sysclk((84).mhz()).freeze();
+    let clocks = rcc.cfgr.sysclk(Hertz::MHz(84)).freeze();
     let _ = device.SYSCFG.constrain();
 
-    let gpiog = device.GPIOG.split();
     let gpiob = device.GPIOB.split();
-    let gpiof = device.GPIOF.split();
 
-    let mut led = gpiog.pg13.into_push_pull_output();
-    let mut delay = Delay::new(core.SYST, &clocks);
+    let mut delay = device.TIM2.delay::<84_000_000>(&clocks);
 
     rprintln!("Hello, world!");
 
@@ -40,26 +37,24 @@ fn main() -> ! {
         device.I2C1,
         (gpiob.pb6, gpiob.pb7),
         Mode::Fast {
-            frequency: (400_000).hz(),
+            frequency: Hertz::Hz(400_000),
             duty_cycle: stm32f4xx_hal::i2c::DutyCycle::Ratio2to1,
         },
-        clocks
+        &clocks
     );
 
-    let mut mpu = Mpu60x0::new(i2c, delay);
+    let mpu = Mpu60x0::new(i2c);
 
-    match mpu.init() {
-        Ok(_) => rprintln!("MPU60X0 initialized"),
-        Err(e) => rprintln!("MPU60X0 initialization failed: {:?}", e),
-    }
-
-    let serial = Serial::uart7(
-        device.UART7,
-        (gpiof.pf7.into_alternate(), gpiof.pf6.into_alternate()),
-        Config::default().baudrate((115_200).bps()),
-        clocks
-    ).unwrap();
-    let (mut tx, _rx) = serial.split();
+    let mut mpu = match mpu.enable(&mut delay) {
+        Ok(mpu) => {
+            rprintln!("MPU60X0 initialized");
+            mpu
+        }
+        Err(e) => {
+            rprintln!("MPU60X0 initialization failed: {:?}", e);
+            panic!("MPU60X0 initialization failed");
+        }
+    };
 
     loop {
         match mpu.read_fifo() {
@@ -77,7 +72,7 @@ fn main() -> ! {
                     data.accel_data.z
                 );
             }
-            Err(e) => (),
+            Err(_) => (),
         }
     }
 }
