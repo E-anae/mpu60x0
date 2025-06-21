@@ -4,18 +4,14 @@
 use cortex_m_rt::entry;
 use panic_halt as _;
 use stm32f4xx_hal::{
-    i2c::{ I2c, Instance, Mode },
-    pac::{ self, sai::ch::im, GPIOG },
+    i2c::{ I2c, Mode },
+    pac::{ self },
     prelude::*,
-    serial::{ config::Config, Serial },
     time::Hertz,
-    timer::Delay,
 };
-use core::panic::PanicInfo;
 use rtt_target::{ rtt_init_print, rprintln };
-use core::fmt::Write;
 
-use mpu60x0::{ Mpu60x0, error::Mpu60x0Error };
+use mpu60x0::Mpu60x0;
 
 #[entry]
 fn main() -> ! {
